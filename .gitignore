@@ -60,3 +60,5 @@ logs/
 check_dupes*.py
 fix_dupes.py
 .pytest_cache/
+
+check_dupe*.py
