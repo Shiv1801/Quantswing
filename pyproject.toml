@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantswing"
+version = "0.1.0"
+description = "QuantSwing NSE — systematic multi-sleeve swing platform for NSE equities"
+requires-python = ">=3.11,<3.13"   # fyers-apiv3 pins aiohttp 3.9.3 (no wheels for 3.13)
+dependencies = [
+    "fyers-apiv3==3.1.18",
+    "pandas==3.0.6",
+    "numpy==2.4.6",
+    "pyarrow==25.0.1",
+    "pydantic==2.13.5",
+    "pydantic-settings[yaml]==2.15.0",
+    "PyYAML==6.0.3",
+    "requests==2.31.0",           # pinned by fyers-apiv3
+    "cryptography==50.0.1",
+    "python-dotenv==1.2.3",
+    "duckdb==1.5.5",
+    "streamlit==1.64.0",
+    "altair==6.3.0",
+    "pip-system-certs==5.3",
+    "scikit-learn==1.9.1",
+    "hmmlearn==0.3.3",
+    "curl_cffi==0.16.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "hypothesis==6.168.1",
+    "ruff==0.16.9",
+    "black==26.5.1",
+    "mypy==2.3.1",
+    "types-requests==2.33.0.20260906",
+    "types-PyYAML==6.0.12.20260906",
+    "pandas-stubs==3.0.5.260914",
+]
+# Later phases add: statsmodels, pykalman,
+# APScheduler, python-telegram-bot, mlflow (optional) — pinned when each phase starts.
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+quantswing = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003", "N818", "E501"]  # black owns code width; long doc tables/strings allowed
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["fyers_apiv3", "fyers_apiv3.*", "pyarrow", "pyarrow.*", "hmmlearn", "hmmlearn.*", "sklearn", "sklearn.*", "curl_cffi", "curl_cffi.*", "certifi"]
+ignore_missing_imports = true

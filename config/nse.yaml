@@ -1,0 +1,60 @@
+# NSE secondary data (D31). Prices of listed stocks stay Fyers-only (D22); NSE supplies what
+# Fyers does not have: delivery %, results calendar, corporate actions, sector, surveillance
+# lists (ASM/GSM/ESM/pledge), holidays, and delisted-stock history (survivorship fix).
+# Formats verified 2026-09-26 against NSE file samples and the NseIndiaApi reference.
+nse:
+  version: "0.1.0"
+  enabled: true
+  start: "2015-01-01"
+
+  http:
+    site_url: https://www.nseindia.com
+    api_url: https://www.nseindia.com/api
+    archive_hosts:                     # tried in order for archive files
+      - https://nsearchives.nseindia.com
+      - https://archives.nseindia.com
+    warmup_path: /                     # visited first to get session cookies
+    impersonate: chrome                # curl_cffi browser TLS profile; "none" = plain requests
+    use_system_certs: true             # Windows: trust the corporate certificate store
+    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    min_interval_s: 1.0                # 02 §2 etiquette: <= 1 request / second
+    timeout_s: 45
+    retries: 3
+    backoff_s: 2.0
+    rewarm_every: 200                  # refresh cookies every N API calls
+
+  storage:
+    raw_dir: data/raw/nse              # raw files (only if keep_raw)
+    processed_dir: data/processed/nse  # parsed Parquet, one file per session / chunk
+    state_file: data/db/nse_state.json
+    keep_raw: false
+
+  files:
+    bhav: true                         # OHLCV + ISIN, all stocks incl. later-delisted
+    delivery: true                     # MTO security-wise delivery
+    surveillance: true                 # REG1_IND / REG_IND daily indicator file
+    udiff_switch: "2024-07-08"         # bhavcopy format change (UDiFF from this date)
+    surveillance_probe_from: "2015-01-01"   # first month probed for the surveillance file
+    retry_recent_misses_days: 7        # re-try 404s this recent (file may publish late)
+
+  api:
+    chunk_days: 31                     # corporate actions / results / board meetings
+    refresh_recent_chunks: 2           # daily update re-fetches the last N chunks
+    sector_refresh_days: 30            # sector per stock, monthly
+
+  series: [EQ, BE]
+  results_cutoff: "15:30"              # results broadcast after this → event on next session
+
+  survivorship:
+    enabled: true                      # add delisted stocks (NSE bhavcopy) to research panels
+    delist_confirm_sessions: 20        # not traded for N sessions before the latest file → delisted
+    min_sessions: 20                   # ignore symbols with fewer traded sessions
+
+  surveillance_exclude:                # gate: excluded while flagged (03 §1 compliance)
+    - gsm
+    - asm_long
+    - asm_short
+    - esm
+    - irp
+    - default
+    - bz

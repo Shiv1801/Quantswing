@@ -1,0 +1,18 @@
+[theme]
+base = "dark"
+primaryColor = "#4c9aff"
+backgroundColor = "#0f1115"
+secondaryBackgroundColor = "#181b21"
+textColor = "#e6e8ec"
+font = "sans serif"
+
+[server]
+headless = true
+port = 8501
+address = "localhost"          # local only (06 §5)
+
+[client]
+toolbarMode = "minimal"          # hide Deploy/dev menu
+
+[browser]
+gatherUsageStats = false

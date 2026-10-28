@@ -1,0 +1,60 @@
+# P2 factor library parameters (03 §1–3). Windows are the spec's; other values are policy.
+factors:
+  version: "0.1.0"
+  annualisation_days: 252
+  crore: 10000000                     # ₹1 crore, for Amihud TV scaling
+
+  gate:                               # 03 §1 integrity gate (derivable subset under D22)
+    min_history: 250                  # sessions with a close
+    continuity_window: 250
+    min_continuity: 0.95              # traded on ≥ 95% of the last 250 sessions
+    lock_window: 20
+    max_lock_streak: 2                # locked streak ≥ 3 in last 20 → fail
+    exclude_surveillance: true        # D31: NSE ASM/GSM/ESM/IRP/default/BZ flags (see nse.yaml)
+
+  trend:            {windows: [60, 120]}
+  momentum:         {lookbacks: [63, 126, 252], skip: 21}
+  compression:      {short: 10, long: 60, rank_window: 250}
+  range:            {window: 20, vol_window: 60}
+  volume_surprise:  {window: 50}
+  hurst:            {window: 250, q: 10}
+  illiquidity:      {window: 20}
+  deviation:        {window: 120}
+  ou_half_life:     {window: 120}
+  kalman:                              # local-linear trend on ln P (policy; per-stock MLE calibration in P4)
+    obs_var: 0.000225                  # ≈ (1.5% typical NSE daily σ)²
+    level_var: 0.00001
+    slope_var: 0.00000001
+    init_slope_var: 0.0001
+  high52:           {window: 252}
+  beta:             {window: 252, benchmark: "NSE:NIFTY500-INDEX"}
+  residual_momentum: {window: 126, skip: 21}   # RMOM: residual vs Nifty 500
+  size_proxy:       {window: 60}               # ln(60d median turnover) for neutralisation
+  delivery_surprise: {window: 60}              # DELZ (D31, NSE delivery %)
+  sector_momentum:  {window: 126, skip: 21, beta_window: 252}   # RSEC (D31, NSE sectors)
+  earnings_reaction: {hold_sessions: 63}       # EARN: last results-day abnormal return (D31)
+
+  macro:                                  # D39 cross-asset drivers (Fyers-only)
+    enabled: true
+    beta_window: 250
+    min_obs: 120
+    move_window: 10
+    symbols_file: data/processed/macro_symbols.json   # written by scripts/macro_backfill.py
+  xsec:
+    winsor_lower: 0.01
+    winsor_upper: 0.99
+    min_names_per_date: 30            # skip dates with too few valid names
+    neutralise_size: true
+    neutralise_sector: true           # D31: NSE sector dummies (current classification, bias noted)
+    min_sector_names: 10              # sectors with fewer stocks pooled into "Other"
+
+  ic:
+    horizons: [1, 5, 10, 20, 40, 60]
+    primary_horizon: 20
+    min_names_per_date: 30
+    t_stat_pass: 2.0                  # 05 §3: mean IC > 0 with t > 2
+    combine:                          # 03 §3.4 IC-IR weights
+      lookback_days: 756              # ~36 months
+      shrink_to_equal: 0.5
+      min_history_days: 252
+      sign_aware: true                # D28 ✅ (2026-09-26): negative-IC factors used inverted; false = spec 03 §3.4

@@ -1,0 +1,25 @@
+# Equity DELIVERY cost model inputs (04 §2). Rates from fyers.in/charges-list, checked 2026-09-25.
+# Re-verify before P3 (cost model) and before go-live.
+costs:
+  version: "2026-09-25"
+  source: https://fyers.in/charges-list
+  broker:
+    delivery_brokerage_flat_inr: 20.0        # ₹20 or 0.3% per executed order, whichever lower
+    delivery_brokerage_pct: 0.003
+  dp_charge:
+    per_scrip_per_sell_day_inr: 12.5         # ₹3.5 CDSL + ₹9 Fyers, + GST; buy/credit = ₹0
+    gst_applies: true
+  statutory:
+    stt_delivery_pct: 0.001                  # 0.1% on buy and sell
+    nse_txn_pct: 0.000030699                 # 0.0030699%
+    sebi_fee_per_crore_inr: 10.0
+    stamp_duty_buy_pct: 0.00015              # 0.015% on buy value
+    gst_pct: 0.18                            # on brokerage + txn + SEBI (+ DP)
+  slippage:
+    default_half_spread_pct: 0.0005          # 0.05% default (04 §2)
+    impact_eta: 0.1                          # initial η; calibrated later
+  tax_reporting:
+    stcg_pct: 0.20
+    ltcg_pct: 0.125
+  idle_cash_annual_yield: 0.065              # paper liquid-fund proxy (policy)
+  settlement: T+1

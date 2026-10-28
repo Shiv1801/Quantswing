@@ -1,0 +1,107 @@
+# Portfolio & risk policy (04 §5–6). Locked decisions reference 07.
+risk:
+  version: "0.1.0"
+  paper_capital_inr: 1000000        # D09 ✅
+  direction: long_only              # D11 ✅
+  beta_hedge_enabled: false         # D11 ✅
+  risk_per_trade: 0.01              # D12 ✅
+  max_heat: 0.06                    # D12 ✅
+  target_portfolio_vol: 0.15        # D10 ✅ annualised
+  max_open_positions: 12
+  sector_max_positions: 3
+  sector_max_gross: 0.30
+  single_name_max: 0.15
+  max_avg_pairwise_corr: 0.6
+  daily_cvar95_max: 0.02
+  overnight_gap_stress_sigma: 2.0
+  overnight_gap_budget: 0.03
+  dd_mult_full_scale_dd: 0.20       # dd_mult = clip(1 - DD/0.20, 0, 1)
+  dd_stop_new_entries: 0.15
+  dd_peak_window_sessions: 252      # D26: DD measured from the rolling 1y equity peak, so a pause can lift
+  corr_spike_percentile: 90
+  corr_spike_gross_mult: 0.5
+  kelly_fraction: 0.25
+  capacity_adv_fraction: 0.02
+  sl_hard_cap: 0.10
+  regime_exposure_mult:             # 03 §5 (policy, tunable)
+    bull_calm: 1.0
+    bull_volatile: 0.6
+    bear: 0.2
+    crisis: 0.0
+  entry_window: {start: "09:30", end: "15:15"}
+  websocket_outage_alert_s: 60
+
+  # ---------------------------------------------------------------- P5 regime model (03 §5)
+  regime:
+    n_states: 4
+    features: [ret, rv20, breadth, dvix]   # FII flow z unavailable (D22)
+    rv_window: 20
+    breadth_window: 100                    # % of gated stocks with positive 100d regression slope
+    vix_change_window: 5
+    min_train_sessions: 504                # first fit needs ~2y
+    refit: monthly                         # expanding window, point-in-time
+    n_iter: 200
+    seed: 42
+    switch_prob: 0.6                       # change state only if p > 0.6 …
+    switch_days: 2                         # … for 2 consecutive days
+    vix_symbol: "NSE:INDIAVIX-INDEX"
+    breadth_min_names: 100
+
+  # ---------------------------------------------------------------- P5 factor portfolio (D29)
+  portfolio:                               # D33 ✅ (2026-09-26): simple, score-driven — replaces D29/D30
+    universe_top_n: 1000                   # trade only the 1,000 most traded stocks …
+    universe_window: 60                    # … by median ₹ traded value over 60 sessions (re-ranked every decision)
+    top_n: 10                              # hold up to 10 stocks
+    hold_buffer_mult: 2.0                  # keep a holding while it ranks within the top 20 (fewer trades)
+    rebalance_every: 5                     # sessions (weekly)
+    min_score: 0.0                         # buy only a positive score (predicted to beat the average stock)
+    weighting: equal_slot                  # 10% per stock; empty slots stay in cash (the score decides exposure)
+    vol_target: false                      # no volatility scaling
+    use_regime: false                      # no market filter; the HMM regime is display-only
+    vol_window: 60                         # (inverse_vol weighting only)
+    cov_window: 120                        # (vol_target only)
+    max_gross: 1.0                         # long-only, no leverage
+    min_trade_value_frac: 0.002            # skip trades < 0.2% of equity (cost control)
+  event_window:                            # 03 §1: no NEW entry around results (S5 exempt) — D31
+    enabled: true
+    before: 3                              # sessions before a scheduled results board meeting
+    after: 3                               # sessions after results were published
+
+  # D41/T24 — trade engine (scripts/run_swing.py), locked 2026-09-28, replaces D37.
+  # σ₁₀ = daily σ (60 sessions) × √10. Only change from D37: sl_sigma 1.5→2.0 and
+  # sl_grace_days 0→3 (wider stop, same $ risk, + a 3-day grace period before it can
+  # trigger). Backtest 2020-01-01→2026-09-25: CAGR 27.0%, MaxDD -18.5%, Sharpe 1.42,
+  # PF 1.58 — meets all four target numbers, passed stability check 7/9 nudged settings.
+  # See 07_ROADMAP_DECISIONS.md (D41) for the full history and rationale.
+  swing:
+    z_entry: 1.0              # buy when the score z >= 1 (about the top 15%)
+    z_exit: 0.0               # sell when the score turns below average
+    horizon: 10
+    vol_window: 60
+    entry_hurdle_mult: 1.0    # expected gain IC*σ10*z must beat 1x round-trip cost
+    replace_hurdle_mult: 2.0  # swap a holding only if the gain beats 2x cost
+    max_replacements: 2
+    gap_skip_sigma: 1.0       # no buy if it opens > 1σ above yesterday's close
+    risk_tiers: [[1.0, 0.0075], [1.5, 0.01], [2.0, 0.0125]]   # z >= level → risk % of capital
+    max_weight: 0.20
+    max_positions: 12
+    max_open_risk: 0.10
+    sl_sigma: 2.0             # T24: SL = entry − 2.0σ10 (was 1.5σ10 under D37)
+    sl_grace_days: 3          # T24: no SL exit in the first 3 sessions after entry (was 0)
+    target_sigma: 3.0         # target = entry + 3σ10 → sell half, SL to entry
+    target_sell_frac: 0.5
+    tsl_start_sigma: 1.0      # TSL starts once up 1σ10
+    tsl_sigma: 1.5            # TSL = highest close − 1.5σ10
+    max_hold: 20
+    cooldown: 10
+    # D39 cross-asset options — all OFF = D37 (tested by scripts/run_macro_test.py)
+    use_macro_factors: false  # M1: macro spill-over factors may enter the score
+    corr_book_max: 0.0        # M2: skip a buy if avg 60d correlation with holdings > x (0 = off)
+    corr_window: 60
+    spike_risk_mult: 1.0      # M2: risk × this during a market-wide correlation spike (1 = off)
+    spike_window: 20
+    spike_pct: 90
+    spike_lookback: 500
+    macro_protect: false      # M3: tighten TSL on profitable holdings hit by market/sector moves
+    macro_protect_k: 1.0
+    macro_tsl_sigma: 1.0

@@ -1,0 +1,29 @@
+# P0 runtime + dev, pinned (tested on Python 3.11). Install: pip install -r requirements.txt
+fyers-apiv3==3.1.18
+pandas==3.0.6
+numpy==2.4.6
+pyarrow==25.0.1
+pydantic==2.13.5
+pydantic-settings[yaml]==2.15.0
+PyYAML==6.0.3
+requests==2.31.0
+cryptography==50.0.1
+python-dotenv==1.2.3
+duckdb==1.5.5
+streamlit==1.64.0            # dashboard (D13)
+altair==6.3.0
+pip-system-certs==5.3        # use Windows certificate store (corporate SSL inspection)
+scikit-learn==1.9.1          # P5 Ledoit-Wolf covariance
+hmmlearn==0.3.3              # P5 regime HMM
+curl_cffi==0.16.3            # D31 NSE data: browser-like HTTPS (NSE blocks plain Python clients)
+# dev
+pytest==9.1.1
+hypothesis==6.168.1
+ruff==0.16.9
+black==26.5.1
+mypy==2.3.1
+types-requests==2.33.0.20260906
+types-PyYAML==6.0.12.20260906
+pandas-stubs==3.0.5.260914
+# editable install of this package
+-e .

@@ -1,0 +1,73 @@
+# Sleeves (D08 ✅: S1–S4 now, S5 in P9). Rule thresholds are the 03 §4 spec values;
+# exit parameters are FITTED per sleeve from MAE/MFE on training folds (see `fit`).
+sleeves:
+  version: "0.2.0"
+  enabled:
+    S1: true    # compression breakout
+    S2: true    # trend pullback
+    S3: true    # correction -> new ATH
+    S4: true    # 52-week / ATH momentum
+    S5: true    # post-earnings drift (D31: NSE results calendar)
+  allocation:
+    method: risk_parity_sharpe_tilt
+    tilt_bounds: [0.5, 1.5]
+    sharpe_lookback_months: 12
+  reentry_cooldown_sessions: 3
+
+  rules:
+    S1:
+      cmp_max: 0.20                  # σ10/σ60 percentile ≤ 20 (coiled)
+      rng_xs_quantile_max: 0.33      # "RNG low": bottom tercile cross-sectionally (policy)
+      tq_min: 0.0                    # TQ120 > 0
+      hurst_min: 0.5
+      range_window: 20
+      breakout_k_sigma: 0.25         # trigger = max H_20 + k·σ60·P (k derived in fit)
+      volz_min: 2.0                  # entry-day volume surprise (full-day proxy for projected)
+    S2:
+      tq_xs_quantile_min: 0.667      # TQ120 top tercile
+      r2_frac_of_median: 0.6         # R² ≥ 0.6 × its 1y median
+      r2_median_window: 252
+      dev_min: -2.5
+      dev_max: -1.5
+      ouhl_max: 15
+      knife_volz_max: 3.0            # no news-dump volume in the down-leg
+      knife_window: 5
+      kal_t_trigger: 1.0             # Kalman slope t-stat crosses above 1
+      setup_memory: 5                # trigger valid within N sessions after a setup day
+    S3:
+      dd_min: -0.40                  # prior drawdown between −40% …
+      dd_max: -0.20                  # … and −20%
+      dd_lookback: 250
+      rr_min: 0.6
+      hurst_min: 0.55
+      kal_t_min: 1.0                 # confirmation
+      kal_slope_accel_window: 5      # slope higher than N sessions ago (accelerating)
+    S4:
+      h52_min: 0.97
+      mom_xs_quantile_min: 0.80      # MOM126 top quintile
+      rmom_min: 0.0                  # RSEC > 0 → RMOM > 0 (D24)
+      high_window: 252               # new closing high vs prior N sessions
+      volz_min: 1.5
+    S5:                              # post-earnings drift (03 §4 S5)
+      ar_sigma_min: 2.0              # earnings-day abnormal return > 2σ (idiosyncratic)
+      volz_min: 3.0                  # event-day volume surprise
+      gap_hold_frac: 0.5             # day-1 close keeps ≥ 50% of the event-day move
+
+  fit:                               # exit fitting from event paths (04 §3)
+    horizon: 60                      # sessions of path tracked per event
+    winner_horizon: 20               # winner = forward return > 0 at this horizon
+    winner_mae_pct: 90               # SL just beyond the 90th pct of winners' MAE
+    sl_buffer: 0.1                   # +10% beyond that percentile
+    k_sl_bounds: [1.0, 4.0]          # σ units
+    partial_reach_frac: 0.65         # partial at the R level ~65% of winners reach
+    partial_r_bounds: [0.75, 3.0]
+    trail_giveback_pct: 50           # trail k from winners' median MFE giveback
+    trail_k_bounds: [1.5, 4.0]
+    time_stop_bounds: [5, 40]        # from forward-return decay (half-life)
+    min_events: 50                   # fewer → keep defaults, mark low-confidence
+
+  validation:                        # 05 §3 sleeve test
+    sharpe_min_oos: 0.7
+    stress_expectancy_min: 0.0
+    min_oos_trades: 30
+    calib_bins: 10

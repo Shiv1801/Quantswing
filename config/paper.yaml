@@ -1,0 +1,31 @@
+# P6 paper trading (D32). Strategy = the D29 ranked portfolio with the regime (D30);
+# the same code as the backtest steps one session per day after the close.
+paper:
+  version: "0.1.0"
+  enabled: true
+  db_file: data/db/paper.sqlite        # orders, state log, equity, positions, controls, incidents
+  log_file: logs/paper_daily.log       # scheduled runs write their output here
+  start_capital_from_risk: true        # uses risk.paper_capital_inr (D09 ₹10,00,000)
+  schedule:
+    time: "19:30"                      # Mon–Fri, after NSE publishes bhavcopy/delivery (~18:00–19:00)
+    task_name: "QuantSwing Paper Daily"
+  login:
+    via_telegram: true                 # no valid Fyers token → send the login link on Telegram
+    wait_minutes: 120                  # wait this long for the redirect URL reply
+    poll_seconds: 10
+  telegram:
+    enabled: true                      # needs TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID in .env
+    timeout_s: 20
+  exit_test:                           # P6: 2 weeks unattended paper run with no crashes
+    min_sessions: 10
+    max_replay_gap: 0.005              # paper equity within 0.5% of a backtest replay
+  live:                                # D40 live paper trading of the D37 trade engine
+    db_file: data/db/live.sqlite
+    capital: 500000                    # starting paper capital (change it in the app)
+    poll_minutes: 5                    # live price updates during market hours
+    poll_start: "09:10"
+    poll_end: "15:35"
+    task_name: "QuantSwing Live Poll"
+    eod_log: logs/live_eod.log
+    poll_log: logs/live_poll.log
+    callback_timeout_s: 300            # wait for the Fyers login redirect (seconds)

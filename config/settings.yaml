@@ -1,0 +1,162 @@
+# QuantSwing NSE — application settings (versioned; no magic numbers in code).
+# Secrets are NOT here — they come from .env (see .env.example).
+settings:
+  version: "0.1.0"
+
+  app:
+    name: quantswing
+    timezone: Asia/Kolkata
+    model_version: "model-v0.7.0"      # tagged per 08 §5; bumped when models change (P6: D28–D32)
+
+  paths:                               # relative to repo root
+    data_dir: data
+    raw_dir: data/raw
+    processed_dir: data/processed
+    db_dir: data/db
+    log_dir: logs
+    secrets_dir: .secrets              # encrypted token + Fernet key (git-ignored)
+    token_file: .secrets/fyers_token.enc
+    token_key_file: .secrets/token.key
+    api_usage_file: data/db/api_usage.json
+
+  logging:
+    level: INFO
+    file_name: quantswing.jsonl
+    max_bytes: 10485760               # 10 MB per file
+    backup_count: 10
+    console: true
+    console_level: ERROR              # scripts print their own progress; full detail in the log file
+    mask_keys:                        # dict keys / query params whose values are masked
+      - access_token
+      - token
+      - secret
+      - secret_key
+      - appIdHash
+      - auth_code
+      - authorization
+      - password
+      - bot_token
+    mask_env_vars:                    # any occurrence of these env values in a message is masked
+      - FYERS_SECRET_KEY
+      - FYERS_CLIENT_ID
+      - TELEGRAM_BOT_TOKEN
+    mask_visible_chars: 4             # chars left visible at the start of a masked value
+
+  market:
+    exchange: NSE
+    session_open: "09:15"
+    session_close: "15:30"
+    pre_open_start: "09:00"
+    weekend_days: [5, 6]              # Python weekday(): Sat=5, Sun=6
+    # NSE trading holidays (stub). P1 replaces this with the NSE holiday-list loader.
+    # Format: YYYY-MM-DD. VERIFY against the official NSE list before relying on it.
+    holidays: []
+    special_sessions: []              # e.g. Muhurat trading dates that ARE trading days
+
+  fyers:
+    login_url_state: quantswing
+    response_type: code
+    grant_type: authorization_code
+    validate_authcode_url: https://api-t1.fyers.in/api/v3/validate-authcode
+    request_timeout_s: 15             # per 09 step 4
+    token_valid_same_ist_day: true    # Fyers tokens expire daily; treat as valid for the IST date obtained
+    history:
+      date_format: "1"                # yyyy-mm-dd ranges
+      cont_flag: "1"
+      # Max calendar days per history request by resolution (Fyers v3 docs; VERIFY).
+      max_days_per_request:
+        D: 366
+        1D: 366
+        intraday: 100                 # 1,2,3,5,10,15,20,30,45,60,120,180,240 min
+        seconds: 30
+    quotes:
+      max_symbols_per_request: 50     # Fyers quotes cap (VERIFY)
+    success_status: ok
+    no_data_status: no_data
+
+  throttle:
+    # Fyers v3 published API limits (VERIFY on myapi.fyers.in before relying):
+    #   10/sec, 200/min, 100,000/day. We run below them by safety_factor.
+    per_second: 10
+    per_minute: 200
+    per_day: 100000
+    safety_factor: 0.8
+    # Daily counter reset boundary. Fyers does not document the reset clock; IST midnight assumed.
+    day_reset_tz: Asia/Kolkata
+    backoff:
+      max_retries: 5
+      base_delay_s: 1.0
+      max_delay_s: 32.0
+      jitter_s: 0.25
+      retryable_http_codes: [429, 500, 502, 503, 504]
+      # Fyers JSON error codes treated as transient (rate limit). -429 / 429 = request limit.
+      retryable_api_codes: [429, -429]
+      # Fatal: daily cap exhausted -> do not retry today.
+      fatal_api_codes: [-353]
+
+  platform:                           # locked decisions (07)
+    dashboard: streamlit              # D13 ✅ (FastAPI + React later)
+    alerts: telegram                  # D17 ✅
+    host: windows_pc                  # D14 ✅ P0–P7; India VPS for P8+
+
+  smoke_test:
+    symbols:
+      - NSE:RELIANCE-EQ
+      - NSE:NIFTY50-INDEX
+    lookback_days: 365
+    resolution: D
+    output_subdir: fyers/daily
+
+  # ---------------------------------------------------------------- P1 data layer (D22: Fyers-only)
+  data:
+    source: fyers
+    history_start: "2015-01-01"        # earliest date requested; Fyers may return less (reported)
+    resolution: D
+    equity_subdir: fyers/eq_daily      # under paths.raw_dir, one parquet per symbol
+    index_subdir: fyers/idx_daily
+    universe_file: data/processed/universe.parquet
+    calendar_file: data/processed/calendar.parquet
+    issues_file: data/processed/validation_issues.parquet
+    adjustments_file: data/processed/adjustments.parquet
+    factors_dir: data/processed/factors   # wide Parquet per factor: raw/, z/, neutral/
+    reports_dir: reports
+    backfill_state_file: data/db/backfill_state.json
+    duckdb_file: data/db/quantswing.duckdb
+    incremental_lookback_days: 10      # run_eod refetch window (calendar days)
+    progress_every: 25                 # print progress every N symbols
+    abort_after_consecutive_failures: 20   # e.g. token expired mid-run
+    calendar_symbol: NSE:NIFTY50-INDEX # sessions = dates this index traded
+    universe:
+      symbol_master_url: https://public.fyers.in/sym_details/NSE_CM.csv   # public, no login (VERIFY)
+      request_timeout_s: 60
+      # 0-based column positions in NSE_CM.csv (Fyers symbol-master doc; auto-checked at load)
+      columns: {fytoken: 0, name: 1, instrument_type: 2, lot_size: 3, tick_size: 4, isin: 5, ticker: 9}
+      series_allowed: [EQ, BE]         # ticker suffix; SME (SM/ST) excluded
+      instrument_types_allowed: [0]    # 0 = equity in Fyers master (VERIFY: counts printed per type)
+      exclude_name_patterns: [" ETF", "BEES", "ETF "]   # ETFs share the -EQ suffix
+    indices:                           # context / benchmark / regime inputs (VERIFY tickers)
+      - NSE:NIFTY50-INDEX
+      - NSE:NIFTY500-INDEX
+      - NSE:INDIAVIX-INDEX
+      - NSE:NIFTYMIDCAP150-INDEX
+      - NSE:NIFTYSMLCAP250-INDEX
+      - NSE:NIFTYBANK-INDEX
+
+  validation:
+    spike_sigma: 8.0                   # 02 §3: |r| > 8σ (rolling) without explanation → quarantine flag
+    spike_vol_window: 60
+    spike_min_obs: 20
+    # Suspected UNADJUSTED corporate action: overnight gap matching a common split/bonus ratio
+    ca_gap_min_abs_log: 0.3            # |ln(open_t / close_{t-1})| above this is examined
+    ca_candidate_ratios: [0.5, 0.3333, 0.25, 0.2, 0.1, 0.6667, 2.0, 5.0, 10.0]
+    ca_ratio_tolerance: 0.04           # relative distance to a candidate ratio
+    ca_auto_adjust: true               # back-adjust prices before a matched gap by the matched ratio
+    stale_max_sessions: 3              # last candle older than N sessions → stale flag
+    # P1 exit-test thresholds (policy)
+    min_universe_symbols: 1500
+    min_coverage: 0.95                 # share of universe symbols with data
+    max_reject_row_frac: 0.001         # OHLC-inconsistent / non-positive rows
+    min_fresh_frac: 0.95               # share of symbols whose last candle is the latest session
+    known_events:                      # adjustment probe: is Fyers history split/bonus-adjusted?
+      - {symbol: "NSE:RELIANCE-EQ", ex_date: "2024-10-28", ratio: 0.5, note: "Bonus 1:1 (VERIFY date)"}
+    known_event_tolerance: 0.12        # |close_ex/close_prev - expected| relative tolerance

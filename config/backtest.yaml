@@ -1,0 +1,57 @@
+# P3 backtest / labels / validation parameters (04 §2–6, 05). Exit multipliers marked
+# (P4) are defaults until fitted per sleeve from MAE/MFE distributions.
+backtest:
+  version: "0.1.0"
+  start: "2016-01-01"               # first signal date (needs ~1y of factor warm-up)
+  risk_free_annual: 0.065           # idle-cash yield proxy, also Sharpe hurdle (costs.yaml)
+
+  baseline:                          # reproducible P3 baseline: composite-score longs
+    name: composite_top
+    signal: COMPOSITE                # neutral composite from P2 (IC-IR weighted)
+    min_score: 1.0                   # composite z threshold (policy)
+    max_new_per_day: 3               # new entries per session (policy)
+    max_entry_gap_sigma: 1.0         # skip if open gaps up more than 1·σ60 (04 §1 gap rule proxy)
+
+  exits:
+    sigma_window: 60
+    k_sl_sigma: 2.0                  # initial SL = entry − k·σ60·P  (P4: from winners' MAE)
+    partial_at_r: 1.5                # book partial at +1.5R (P4: from MFE)
+    partial_fraction: 0.5
+    move_sl_to_breakeven: true
+    trail_sigma_window: 20
+    trail_k_below_switch: 3.0        # trail 3σ below +3R …
+    trail_k_above_switch: 2.0        # … 2σ above +3R (P4: from MFE giveback)
+    trail_switch_r: 3.0
+    time_stop_sessions: 20           # exit if < +1R after N sessions (P4: signal half-life)
+    time_stop_min_r: 1.0
+    max_hold_sessions: 60
+    reentry_cooldown_sessions: 3     # after a stop-out (04 §4)
+
+  sizing:
+    target_position_vol: 0.05        # σ_target_pos for vol_qty (04 §5; policy)
+    adv_window: 20                   # ADV = median traded value over N sessions
+
+  execution:
+    impact_vol_window: 20            # σ_daily used in the impact term
+    cost_stress_multiplier: 2.0      # 05 §3 cost stress run
+    delist_exit_haircut: 0.30        # D31: a delisted holding exits at last close × (1 − 0.30)
+    credit_dividends: true           # 04 §2: dividends credited on ex-date (NSE corporate actions)
+
+  labels:                            # triple barrier (05 §1)
+    upper_r: 1.5
+    k_sl_sigma: 2.0
+    max_hold_sessions: 40
+
+  validation:
+    train_years: 3
+    test_years: 1
+    embargo_sessions: 60             # = max holding days
+    montecarlo_sims: 5000
+    montecarlo_seed: 42
+    montecarlo_dd_mult_pass: 1.5     # 95th pct DD ≤ 1.5 × backtest DD
+    dsr_pass: 0.95
+    max_year_pnl_share: 0.40         # no single year > 40% of P&L
+
+  tracking:
+    runs_dir: runs                   # built-in tracker (D25); MLflow optional
+    use_mlflow: false
